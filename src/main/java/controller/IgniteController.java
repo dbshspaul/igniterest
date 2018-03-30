@@ -12,9 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 import javax.cache.Cache;
 import java.util.HashMap;
@@ -73,6 +71,48 @@ public class IgniteController {
             return new ResponseEntity<Object>(data, HttpStatus.NOT_MODIFIED);
         } else {
             data.put("msg", "Data inserted in cache successfully.");
+            return new ResponseEntity<Object>(data, HttpStatus.OK);
+        }
+    }
+
+    @GetMapping(value = "/cache/{key}", produces = MediaType.APPLICATION_JSON_UTF8_VALUE, consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public ResponseEntity<?> getCacheData(@PathVariable(value = "key") String key) {
+        Map<Object, Object> data = new HashMap<>();
+        String errMsg = "";
+        try {
+            String s = igniteCache.get(key);
+            data.put("data", s);
+            LOGGER.info("Data retrieve from cache successfully.");
+        } catch (TransactionException e) {
+            errMsg = e.getMessage();
+            LOGGER.error("Data retrieving failed. ", e.getMessage());
+        }
+
+        if (data.get("data")==null) {
+            data.put("msg", errMsg);
+            return new ResponseEntity<Object>(data,HttpStatus.INTERNAL_SERVER_ERROR);
+        } else {
+            return new ResponseEntity<Object>(data, HttpStatus.OK);
+        }
+    }
+
+    @DeleteMapping(value = "/cache", produces = MediaType.APPLICATION_JSON_UTF8_VALUE, consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public ResponseEntity<?> deleteAllCacheData() {
+        Map<Object, Object> data = new HashMap<>();
+        String errMsg = "";
+        try {
+            igniteCache.clear();
+            LOGGER.info("Cache clear successfully.");
+        } catch (TransactionException e) {
+            errMsg = e.getMessage();
+            LOGGER.error("Cache clearing failed. ", e.getMessage());
+        }
+
+        if (errMsg != "") {
+            data.put("msg", errMsg);
+            return new ResponseEntity<Object>(data,HttpStatus.NO_CONTENT);
+        } else {
+            data.put("msg", "Cache clear successfully.");
             return new ResponseEntity<Object>(data, HttpStatus.OK);
         }
     }
