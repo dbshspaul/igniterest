@@ -1,10 +1,9 @@
 package controller;
 
+import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
-import org.apache.ignite.cache.query.QueryCursor;
-import org.apache.ignite.cache.query.ScanQuery;
-import org.apache.ignite.lang.IgniteBiTuple;
 import org.apache.ignite.transactions.TransactionException;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,25 +23,24 @@ public class IgniteController {
     private static final Logger LOGGER = LoggerFactory.getLogger(IgniteController.class);
 
     @Autowired
-    IgniteCache<String, String> igniteCache;
+    Ignite ignite;
 
-    @GetMapping(value = "/test", produces = MediaType.TEXT_PLAIN_VALUE)
-    public String test(){
+    @GetMapping(value = "/", produces = MediaType.TEXT_PLAIN_VALUE)
+    public String test() {
         return "working";
     }
 
     @GetMapping(value = "/cache", produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
-    public ResponseEntity<?> getAllCacheData() {
+    public ResponseEntity<?> getAllCacheData(@RequestParam("cache") String cacheName) {
         Map<Object, Object> data = new HashMap<>();
-        LOGGER.info("Cache reading Start");
-
         try {
-            Iterator<Cache.Entry<String, String>> iter = igniteCache.iterator();
-            while (iter.hasNext()){
-                Cache.Entry<String, String> entry = iter.next();
+            LOGGER.info("Reading cache "+cacheName);
+            IgniteCache<String, Object> cache = ignite.getOrCreateCache(cacheName);
+            Iterator<Cache.Entry<String, Object>> iter = cache.iterator();
+            while (iter.hasNext()) {
+                Cache.Entry<String, Object> entry = iter.next();
                 data.put(entry.getKey(), entry.getValue());
             }
-            LOGGER.info("Cache reading End");
         } catch (Exception e) {
             LOGGER.error("Error: " + e.getMessage());
             return new ResponseEntity<Object>(e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
@@ -54,12 +52,55 @@ public class IgniteController {
         }
     }
 
-    @PutMapping(value = "/cache", produces = MediaType.APPLICATION_JSON_UTF8_VALUE, consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-    public ResponseEntity<?> putCacheData(@RequestParam(value = "key") String key, @RequestParam(value = "value") String value) {
+    @PutMapping(value = "/putString", produces = MediaType.APPLICATION_JSON_UTF8_VALUE, consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public ResponseEntity<?> putCacheData(@RequestParam(value = "key") String key,
+                                          @RequestParam(value = "value") String value,
+                                          @RequestParam("cache") String cacheName) {
+        return putDataInCache(key, value, cacheName);
+    }
+
+    @PutMapping(value = "/putInt", produces = MediaType.APPLICATION_JSON_UTF8_VALUE, consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public ResponseEntity<?> putCacheData(@RequestParam(value = "key") String key,
+                                          @RequestParam(value = "value") int value,
+                                          @RequestParam("cache") String cacheName) {
+        return putDataInCache(key, value, cacheName);
+    }
+
+    @PutMapping(value = "/putlong", produces = MediaType.APPLICATION_JSON_UTF8_VALUE, consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public ResponseEntity<?> putCacheData(@RequestParam(value = "key") String key,
+                                          @RequestParam(value = "value") long value,
+                                          @RequestParam("cache") String cacheName) {
+        return putDataInCache(key, value, cacheName);
+    }
+
+    @PutMapping(value = "/putFloat", produces = MediaType.APPLICATION_JSON_UTF8_VALUE, consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public ResponseEntity<?> putCacheData(@RequestParam(value = "key") String key,
+                                          @RequestParam(value = "value") float value,
+                                          @RequestParam("cache") String cacheName) {
+        return putDataInCache(key, value, cacheName);
+    }
+
+    @PutMapping(value = "/putDouble", produces = MediaType.APPLICATION_JSON_UTF8_VALUE, consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public ResponseEntity<?> putCacheData(@RequestParam(value = "key") String key,
+                                          @RequestParam(value = "value") double value,
+                                          @RequestParam("cache") String cacheName) {
+        return putDataInCache(key, value, cacheName);
+    }
+
+    @PutMapping(value = "/putBoolean", produces = MediaType.APPLICATION_JSON_UTF8_VALUE, consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
+    public ResponseEntity<?> putCacheData(@RequestParam(value = "key") String key,
+                                          @RequestParam(value = "value") boolean value,
+                                          @RequestParam("cache") String cacheName) {
+        return putDataInCache(key, value, cacheName);
+    }
+
+    @NotNull
+    private ResponseEntity<?> putDataInCache(String key, Object value, String cacheName) {
         Map<Object, Object> data = new HashMap<>();
         String errMsg = "";
         try {
-            igniteCache.put(key, value);
+            IgniteCache<String, Object> cache = ignite.getOrCreateCache(cacheName);
+            cache.put(key, value);
             LOGGER.info("Data inserted in cache successfully.");
         } catch (TransactionException e) {
             errMsg = e.getMessage();
@@ -76,11 +117,13 @@ public class IgniteController {
     }
 
     @GetMapping(value = "/cache/{key}", produces = MediaType.APPLICATION_JSON_UTF8_VALUE, consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-    public ResponseEntity<?> getCacheData(@PathVariable(value = "key") String key) {
+    public ResponseEntity<?> getCacheData(@PathVariable(value = "key") String key,
+                                          @RequestParam("cache") String cacheName) {
         Map<Object, Object> data = new HashMap<>();
         String errMsg = "";
         try {
-            String s = igniteCache.get(key);
+            IgniteCache<String, Object> cache = ignite.getOrCreateCache(cacheName);
+            Object s = cache.get(key);
             data.put("data", s);
             LOGGER.info("Data retrieve from cache successfully.");
         } catch (TransactionException e) {
@@ -88,20 +131,21 @@ public class IgniteController {
             LOGGER.error("Data retrieving failed. ", e.getMessage());
         }
 
-        if (data.get("data")==null) {
+        if (data.get("data") == null) {
             data.put("msg", errMsg);
-            return new ResponseEntity<Object>(data,HttpStatus.INTERNAL_SERVER_ERROR);
+            return new ResponseEntity<Object>(data, HttpStatus.INTERNAL_SERVER_ERROR);
         } else {
             return new ResponseEntity<Object>(data, HttpStatus.OK);
         }
     }
 
     @DeleteMapping(value = "/cache", produces = MediaType.APPLICATION_JSON_UTF8_VALUE, consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-    public ResponseEntity<?> deleteAllCacheData() {
+    public ResponseEntity<?> deleteAllCacheData(@RequestParam("cache") String cacheName) {
         Map<Object, Object> data = new HashMap<>();
         String errMsg = "";
         try {
-            igniteCache.clear();
+            IgniteCache<String, Object> cache = ignite.getOrCreateCache(cacheName);
+            cache.clear();
             LOGGER.info("Cache clear successfully.");
         } catch (TransactionException e) {
             errMsg = e.getMessage();
@@ -110,7 +154,7 @@ public class IgniteController {
 
         if (errMsg != "") {
             data.put("msg", errMsg);
-            return new ResponseEntity<Object>(data,HttpStatus.NO_CONTENT);
+            return new ResponseEntity<Object>(data, HttpStatus.NO_CONTENT);
         } else {
             data.put("msg", "Cache clear successfully.");
             return new ResponseEntity<Object>(data, HttpStatus.OK);
